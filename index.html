@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aplikasi Laporan Kerja</title>
+
+<style>
+body{
+  font-family:Arial, sans-serif;
+  background:#eef2f5;
+  margin:0;
+}
+.container{
+  max-width:1100px;
+  margin:20px auto;
+  background:#fff;
+  padding:20px;
+  border-radius:8px;
+}
+h2,h3{margin-top:0}
+input,select,textarea{
+  width:100%;
+  padding:8px;
+  margin:6px 0;
+}
+button{
+  padding:8px 14px;
+  border:none;
+  border-radius:4px;
+  cursor:pointer;
+}
+.btn{background:#0d6efd;color:#fff}
+.btn-green{background:#198754;color:#fff}
+.btn-red{background:#dc3545;color:#fff}
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:15px;
+  font-size:14px;
+}
+th,td{
+  border:1px solid #ccc;
+  padding:6px;
+}
+th{background:#f1f1f1}
+.hidden{display:none}
+
+@media print{
+  .no-print{display:none}
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<!-- ========== LOGIN ========== -->
+<div id="loginBox">
+  <h3>🔐 Login Aplikasi</h3>
+  <input id="username" placeholder="Username">
+  <input id="password" type="password" placeholder="Password">
+  <button class="btn" onclick="login()">Login</button>
+  <p id="msg" style="color:red"></p>
+</div>
+
+<!-- ========== FORM USER ========== -->
+<div id="formBox" class="hidden">
+  <h3>📝 Input Laporan Kerja</h3>
+
+  <label>Tanggal</label>
+  <input type="date" id="tanggal">
+
+  <label>Nama</label>
+  <input id="nama" placeholder="Nama Petugas">
+
+  <label>Divisi</label>
+  <select id="divisi">
+    <option>IT</option>
+    <option>Properti</option>
+  </select>
+
+  <label>Lokasi</label>
+  <input id="lokasi" placeholder="Lokasi / Unit">
+
+  <label>Deskripsi</label>
+  <textarea id="deskripsi"></textarea>
+
+  <label>Status</label>
+  <select id="status">
+    <option>Selesai</option>
+    <option>Proses</option>
+  </select>
+
+  <button class="btn-green" onclick="kirimLaporan()">Simpan Laporan</button>
+  <hr>
+</div>
+
+<!-- ========== ADMIN ========== -->
+<div id="adminBox" class="hidden no-print">
+  <h3>📊 Data Laporan (Admin)</h3>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Tanggal</th>
+        <th>Nama</th>
+        <th>Divisi</th>
+        <th>Lokasi</th>
+        <th>Deskripsi</th>
+        <th>Status</th>
+        <th>Approval</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="data"></tbody>
+  </table>
+</div>
+
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+const API_URL = "https://script.google.com/macros/s/AKfycbx9HNO9KWDW89y7lBwCF0wQ4Ytvekm4kR3PkmNYtdLM47SwSFHdkoLlvo3IfgJc05B5/exec";
+
+/* ================= LOGIN ================= */
+function login(){
+  fetch(API_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      action:"login",
+      username:username.value,
+      password:password.value
+    })
+  })
+  .then(r=>r.json())
+  .then(res=>{
+    if(res.status!=="ok"){
+      msg.innerText="Login gagal";
+      return;
+    }
+
+    localStorage.setItem("token",res.token);
+    localStorage.setItem("role",res.role);
+
+    loginBox.classList.add("hidden");
+    formBox.classList.remove("hidden");
+
+    if(res.role==="ADMIN"){
+      adminBox.classList.remove("hidden");
+      ambilData();
+    }
+  })
+  .catch(()=>{
+    msg.innerText="Gagal koneksi ke server";
+  });
+}
+
+/* ================= USER ================= */
+function kirimLaporan(){
+  fetch(API_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      action:"add",
+      token:localStorage.getItem("token"),
+      tanggal:tanggal.value,
+      nama:nama.value,
+      divisi:divisi.value,
+      lokasi:lokasi.value,
+      deskripsi:deskripsi.value,
+      status:status.value
+    })
+  })
+  .then(r=>r.json())
+  .then(res=>{
+    if(res.status==="ok"){
+      alert("Laporan dikirim (Pending)");
+      tanggal.value=nama.value=lokasi.value=deskripsi.value="";
+      if(localStorage.getItem("role")==="ADMIN") ambilData();
+    }else{
+      alert("Gagal simpan laporan");
+    }
+  });
+}
+
+/* ================= ADMIN ================= */
+function ambilData(){
+  fetch(API_URL)
+  .then(r=>r.json())
+  .then(rows=>{
+    data.innerHTML="";
+    rows.forEach(r=>{
+      data.innerHTML+=`
+      <tr>
+        <td>${r.tanggal}</td>
+        <td>${r.nama}</td>
+        <td>${r.divisi}</td>
+        <td>${r.lokasi}</td>
+        <td>${r.deskripsi}</td>
+        <td>${r.status}</td>
+        <td>${r.approval}</td>
+        <td>
+          <button class="btn-green" onclick="setApproval(${r.row},'Approved')">✔</button>
+          <button class="btn-red" onclick="setApproval(${r.row},'Rejected')">✖</button>
+        </td>
+      </tr>`;
+    });
+  });
+}
+
+function setApproval(row,val){
+  fetch(API_URL,{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      action:"approval",
+      token:localStorage.getItem("token"),
+      row:row,
+      approval:val
+    })
+  })
+  .then(()=>ambilData());
+}
+</script>
+
+</body>
+</html>
